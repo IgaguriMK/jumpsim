@@ -41,7 +41,7 @@ func main() {
 	depth := 0
 	for {
 		cnt++
-		next, ok := step.Next(systems, jumpRange)
+		next, ok := step.Next(systems, jumpRange, goal)
 		if !ok {
 			if step.Prev == nil {
 				fmt.Println("Can't find route.")
@@ -74,7 +74,7 @@ type Step struct {
 	LeftCandidates []*Vec3
 }
 
-func (s *Step) Next(systems *Systems, dist float64) (*Step, bool) {
+func (s *Step) Next(systems *Systems, dist float64, goal *Vec3) (*Step, bool) {
 	var nextPos *Vec3
 	for {
 		if len(s.LeftCandidates) == 0 {
@@ -90,6 +90,9 @@ func (s *Step) Next(systems *Systems, dist float64) (*Step, bool) {
 	}
 
 	nextCandidates := systems.GetWithin(nextPos, dist)
+	sort.Slice(nextCandidates, func(i, j int) bool {
+		return nextCandidates[i].Dist2(goal) < nextCandidates[j].Dist2(goal)
+	})
 
 	nextPos.Visited = true
 	return &Step{
@@ -139,7 +142,6 @@ func (s *Systems) GetWithin(v *Vec3, dist float64) []*Vec3 {
 
 	n := len(s.systems)
 	minIndex := sort.Search(n, func(i int) bool { return s.systems[i].X >= xMin })
-	//centerIndex := sort.Search(n, func(i int) bool { return s.systems[i].X >= v.X })
 	overIndex := sort.Search(n, func(i int) bool { return s.systems[i].X >= xMax })
 
 	results := make([]*Vec3, 0)
