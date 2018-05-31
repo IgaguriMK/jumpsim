@@ -17,9 +17,9 @@ const (
 
 func main() {
 	var density float64
-	flag.Float64Var(&density, "d", BubbleDensity, "System density")
+	flag.Float64Var(&density, "d", BubbleDensity, "System densit [LY^-3]")
 	var jumpRange float64
-	flag.Float64Var(&jumpRange, "j", 50, "Jump range")
+	flag.Float64Var(&jumpRange, "j", 50, "Jump range [LY]")
 
 	flag.Parse()
 
