@@ -3,6 +3,7 @@ package main
 import (
 	"flag"
 	"fmt"
+	"log"
 	"math"
 	"math/rand"
 	"sort"
@@ -51,7 +52,9 @@ func main() {
 func runSim(jumpRange, density float64) *Result {
 	fieldSize := FieldSize + FieldPadding*2
 
+	log.Printf("Generatting systems for density=%.6f.\n", density)
 	systems := GenSystems(fieldSize, density)
+	log.Printf("Total %d systems.", systems.Size())
 
 	start := &Vec3{-FieldSize / 2, 0, 0, false}
 	goal := &Vec3{FieldSize / 2, 0, 0, false}
@@ -61,7 +64,13 @@ func runSim(jumpRange, density float64) *Result {
 		LeftCandidates: systems.GetWithin(start, jumpRange),
 	}
 
+	cnt := 0
 	for {
+		cnt++
+		if cnt%1000 == 0 {
+			log.Printf("Runnning: %d\n", cnt)
+		}
+
 		next, ok := step.Next(systems, jumpRange, goal)
 		if !ok {
 			if step.Prev == nil {
@@ -150,15 +159,6 @@ func (s *Step) TotalJump() float64 {
 	}
 
 	return s.Prev.Pos.Dist(s.Pos) + s.Prev.TotalJump()
-}
-
-func (s *Step) Print() {
-	if s.Prev != nil {
-		s.Prev.Print()
-		fmt.Printf("%v: %.2f\n", s.Pos, s.Prev.Pos.Dist(s.Pos))
-	} else {
-		fmt.Printf("START: %v\n", s.Pos)
-	}
 }
 
 type Systems struct {
