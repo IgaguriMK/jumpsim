@@ -35,7 +35,7 @@ func main() {
 	// gen problems
 	go func() {
 		id := 0
-		for jumpRange := 6.8; jumpRange < 75; jumpRange += 0.05 {
+		for jumpRange := 6.5; jumpRange < 75; jumpRange += 0.25 {
 			for i := 0; i < tryCount; i++ {
 				probCh <- Problem{
 					ID:        id,
@@ -120,7 +120,7 @@ func main() {
 
 		// 進捗ログ
 		log.Printf(
-			"Done: id=%d, nextID=%d, len(results)",
+			"Done: id=%d, nextID=%d, len(results)=%d",
 			r.ID,
 			nextID,
 			len(results),
@@ -155,7 +155,12 @@ func runSim(prob Problem) *Result {
 
 	fieldSize := FieldSize + FieldPadding*2
 
-	log.Printf("Start search id=%d.\n", prob.ID)
+	log.Printf(
+		"Start search id=%d, jumpRange=%.2f, density=%.6f",
+		prob.ID,
+		jumpRange,
+		density,
+	)
 
 	systems := GenSystems(fieldSize, density)
 
