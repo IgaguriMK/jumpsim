@@ -15,6 +15,8 @@ const (
 	BubbleDensity = 0.002375
 	FieldSize     = 1000.0
 	FieldPadding  = 80.0
+
+	DefaultMaxHop = 100000
 )
 
 func main() {
@@ -22,10 +24,10 @@ func main() {
 	flag.Float64Var(&density, "d", BubbleDensity, "System densit [LY^-3]")
 	var tryCount int
 	flag.IntVar(&tryCount, "n", 1, "Try count per jump range")
+	var maxHop int
+	flag.IntVar(&maxHop, "m", DefaultMaxHop, "Max hop hop count for single problem")
 
 	flag.Parse()
-
-	fmt.Println(`Succ	Density	JumpRange	Count	TotalJump	Efficiency`)
 
 	probCh := make(chan Problem, 32)
 	resultCh := make(chan *Result, 32)
@@ -39,6 +41,7 @@ func main() {
 					ID:        id,
 					JumpRange: jumpRange,
 					Density:   density,
+					MaxHop:    maxHop,
 				}
 				id++
 			}
@@ -72,10 +75,12 @@ func main() {
 	}()
 
 	// collect results
+	fmt.Println(`ID	Succ	Because	Density	JumpRange	Count	TotalJump	Efficiency`)
+
 	nextID := 0
 	results := make([]*Result, 0)
 	for r := range resultCh {
-		results := append(results, r)
+		results = append(results, r)
 		sort.Slice(results, func(i, j int) bool {
 			return results[i].ID < results[j].ID
 		})
@@ -94,7 +99,8 @@ func main() {
 
 			if result.Succeeded {
 				fmt.Printf(
-					`T	%.6f	%.2f	%d	%.2f	%.4f`+"\n",
+					`%d	NA	T	%.6f	%.2f	%d	%.2f	%.4f`+"\n",
+					result.ID,
 					result.Density,
 					result.JumpRange,
 					result.Count,
@@ -103,12 +109,22 @@ func main() {
 				)
 			} else {
 				fmt.Printf(
-					`F	%.6f	%.2f	NA	NA	NA`+"\n",
+					`%d	%s	F	%.6f	%.2f	NA	NA	NA`+"\n",
+					result.ID,
+					result.Because,
 					result.Density,
 					result.JumpRange,
 				)
 			}
 		}
+
+		// 進捗ログ
+		log.Printf(
+			"Done: id=%d, nextID=%d, len(results)",
+			r.ID,
+			nextID,
+			len(results),
+		)
 	}
 }
 
@@ -116,15 +132,21 @@ type Problem struct {
 	ID        int
 	JumpRange float64
 	Density   float64
+	MaxHop    int
 }
 
 type Result struct {
 	ID        int
+	Because   string
 	Density   float64
 	JumpRange float64
 	Succeeded bool
 	Count     int
 	TotalJump float64
+}
+
+func (r Result) String() string {
+	return fmt.Sprintf("{id=%d, succ=%t, because=%q}", r.ID, r.Succeeded, r.Because)
 }
 
 func runSim(prob Problem) *Result {
@@ -133,9 +155,9 @@ func runSim(prob Problem) *Result {
 
 	fieldSize := FieldSize + FieldPadding*2
 
-	log.Printf("Generatting systems for density=%.6f.\n", density)
+	log.Printf("Start search id=%d.\n", prob.ID)
+
 	systems := GenSystems(fieldSize, density)
-	log.Printf("Total %d systems.", systems.Size())
 
 	start := &Vec3{-FieldSize / 2, 0, 0, false}
 	goal := &Vec3{FieldSize / 2, 0, 0, false}
@@ -148,8 +170,16 @@ func runSim(prob Problem) *Result {
 	cnt := 0
 	for {
 		cnt++
-		if cnt%1000 == 0 {
-			log.Printf("Runnning: %d\n", cnt)
+
+		// 試行回数が多すぎる
+		if cnt > prob.MaxHop {
+			return &Result{
+				ID:        prob.ID,
+				Density:   density,
+				JumpRange: jumpRange,
+				Succeeded: false,
+				Because:   "exceed_max_hop",
+			}
 		}
 
 		next, ok := step.Next(systems, jumpRange, goal)
@@ -160,6 +190,7 @@ func runSim(prob Problem) *Result {
 					Density:   density,
 					JumpRange: jumpRange,
 					Succeeded: false,
+					Because:   "no_route",
 				}
 			}
 			step = step.Prev
