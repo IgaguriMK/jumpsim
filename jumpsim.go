@@ -3,7 +3,6 @@ package main
 import (
 	"flag"
 	"fmt"
-	"log"
 	"math"
 	"math/rand"
 	"sort"
@@ -23,11 +22,32 @@ func main() {
 
 	flag.Parse()
 
+	fmt.Println(`Succ	Density	JumpRange	Count	TotalJump	Efficiency`)
+
+	result := runSim(jumpRange, density)
+
+	if result.Succeeded {
+		fmt.Printf(
+			`T	%.6f	%.2f	%d	%.2f	%.4f`+"\n",
+			result.Density,
+			result.JumpRange,
+			result.Count,
+			result.TotalJump,
+			FieldSize/result.TotalJump,
+		)
+	} else {
+		fmt.Printf(
+			`F	%.6f	%.2f	NA	NA	NA`+"\n",
+			result.Density,
+			result.JumpRange,
+		)
+	}
+}
+
+func runSim(jumpRange, density float64) *Result {
 	fieldSize := FieldSize + FieldPadding*2
 
-	log.Println("Generating systems...")
 	systems := GenSystems(fieldSize, density)
-	log.Println("Total", systems.Size(), "systems.")
 
 	start := &Vec3{-FieldSize / 2, 0, 0, false}
 	goal := &Vec3{FieldSize / 2, 0, 0, false}
@@ -37,35 +57,45 @@ func main() {
 		LeftCandidates: systems.GetWithin(start, jumpRange),
 	}
 
-	cnt := 0
-	depth := 0
 	for {
-		cnt++
 		next, ok := step.Next(systems, jumpRange, goal)
 		if !ok {
 			if step.Prev == nil {
-				fmt.Println("Can't find route.")
-				return
+				return &Result{
+					Density:   density,
+					JumpRange: jumpRange,
+					Succeeded: false,
+				}
 			}
 			step = step.Prev
-			depth--
-			log.Println("Backtracking, ", depth)
 			continue
 		}
-		depth++
 
 		if next.Pos.Within(goal, jumpRange*jumpRange) {
-			next.Print()
-			fmt.Printf("Goal: %.2f\n", next.Pos.Dist(goal))
-			return
-		}
+			goaled := &Step{
+				Pos:  goal,
+				Prev: next,
+			}
 
-		if cnt%128 == 0 {
-			log.Printf("Count: %d, depth: %d\n", cnt, depth)
+			return &Result{
+				Density:   density,
+				JumpRange: jumpRange,
+				Succeeded: true,
+				Count:     goaled.Count(),
+				TotalJump: goaled.TotalJump(),
+			}
 		}
 
 		step = next
 	}
+}
+
+type Result struct {
+	Density   float64
+	JumpRange float64
+	Succeeded bool
+	Count     int
+	TotalJump float64
 }
 
 type Step struct {
@@ -100,6 +130,22 @@ func (s *Step) Next(systems *Systems, dist float64, goal *Vec3) (*Step, bool) {
 		Prev:           s,
 		LeftCandidates: nextCandidates,
 	}, true
+}
+
+func (s *Step) Count() int {
+	if s.Prev == nil {
+		return 0
+	}
+
+	return 1 + s.Prev.Count()
+}
+
+func (s *Step) TotalJump() float64 {
+	if s.Prev == nil {
+		return 0.0
+	}
+
+	return s.Prev.Pos.Dist(s.Pos) + s.Prev.TotalJump()
 }
 
 func (s *Step) Print() {
