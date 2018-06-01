@@ -17,30 +17,34 @@ const (
 func main() {
 	var density float64
 	flag.Float64Var(&density, "d", BubbleDensity, "System densit [LY^-3]")
-	var jumpRange float64
-	flag.Float64Var(&jumpRange, "j", 50, "Jump range [LY]")
+	var tryCount int
+	flag.IntVar(&tryCount, "n", 1, "Try count per jump range")
 
 	flag.Parse()
 
 	fmt.Println(`Succ	Density	JumpRange	Count	TotalJump	Efficiency`)
 
-	result := runSim(jumpRange, density)
+	for jumpRange := 6.8; jumpRange < 75; jumpRange += 0.05 {
+		for i := 0; i < tryCount; i++ {
+			result := runSim(jumpRange, density)
 
-	if result.Succeeded {
-		fmt.Printf(
-			`T	%.6f	%.2f	%d	%.2f	%.4f`+"\n",
-			result.Density,
-			result.JumpRange,
-			result.Count,
-			result.TotalJump,
-			FieldSize/result.TotalJump,
-		)
-	} else {
-		fmt.Printf(
-			`F	%.6f	%.2f	NA	NA	NA`+"\n",
-			result.Density,
-			result.JumpRange,
-		)
+			if result.Succeeded {
+				fmt.Printf(
+					`T	%.6f	%.2f	%d	%.2f	%.4f`+"\n",
+					result.Density,
+					result.JumpRange,
+					result.Count,
+					result.TotalJump,
+					FieldSize/result.TotalJump,
+				)
+			} else {
+				fmt.Printf(
+					`F	%.6f	%.2f	NA	NA	NA`+"\n",
+					result.Density,
+					result.JumpRange,
+				)
+			}
+		}
 	}
 }
 
