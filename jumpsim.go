@@ -6,7 +6,9 @@ import (
 	"log"
 	"math"
 	"math/rand"
+	"runtime"
 	"sort"
+	"sync"
 )
 
 const (
@@ -25,9 +27,70 @@ func main() {
 
 	fmt.Println(`Succ	Density	JumpRange	Count	TotalJump	Efficiency`)
 
-	for jumpRange := 6.8; jumpRange < 75; jumpRange += 0.05 {
-		for i := 0; i < tryCount; i++ {
-			result := runSim(jumpRange, density)
+	probCh := make(chan Problem, 32)
+	resultCh := make(chan *Result, 32)
+
+	// gen problems
+	go func() {
+		id := 0
+		for jumpRange := 6.8; jumpRange < 75; jumpRange += 0.05 {
+			for i := 0; i < tryCount; i++ {
+				probCh <- Problem{
+					ID:        id,
+					JumpRange: jumpRange,
+					Density:   density,
+				}
+				id++
+			}
+		}
+		close(probCh)
+	}()
+
+	// launch worker
+	workerNum := runtime.NumCPU() - 2
+	if workerNum < 1 {
+		workerNum = 1
+	}
+	log.Println("Worker count:", workerNum)
+
+	var workerWG sync.WaitGroup
+
+	for i := 0; i < workerNum; i++ {
+		workerWG.Add(1)
+		go func() {
+			for prob := range probCh {
+				result := runSim(prob)
+				resultCh <- result
+			}
+			workerWG.Done()
+		}()
+	}
+
+	go func() {
+		workerWG.Wait()
+		close(resultCh)
+	}()
+
+	// collect results
+	nextID := 0
+	results := make([]*Result, 0)
+	for r := range resultCh {
+		results := append(results, r)
+		sort.Slice(results, func(i, j int) bool {
+			return results[i].ID < results[j].ID
+		})
+
+		for {
+			if len(results) == 0 {
+				break
+			}
+			if results[0].ID > nextID {
+				break
+			}
+
+			result := results[0]
+			results = results[1:]
+			nextID++
 
 			if result.Succeeded {
 				fmt.Printf(
@@ -49,7 +112,25 @@ func main() {
 	}
 }
 
-func runSim(jumpRange, density float64) *Result {
+type Problem struct {
+	ID        int
+	JumpRange float64
+	Density   float64
+}
+
+type Result struct {
+	ID        int
+	Density   float64
+	JumpRange float64
+	Succeeded bool
+	Count     int
+	TotalJump float64
+}
+
+func runSim(prob Problem) *Result {
+	jumpRange := prob.JumpRange
+	density := prob.Density
+
 	fieldSize := FieldSize + FieldPadding*2
 
 	log.Printf("Generatting systems for density=%.6f.\n", density)
@@ -75,6 +156,7 @@ func runSim(jumpRange, density float64) *Result {
 		if !ok {
 			if step.Prev == nil {
 				return &Result{
+					ID:        prob.ID,
 					Density:   density,
 					JumpRange: jumpRange,
 					Succeeded: false,
@@ -91,6 +173,7 @@ func runSim(jumpRange, density float64) *Result {
 			}
 
 			return &Result{
+				ID:        prob.ID,
 				Density:   density,
 				JumpRange: jumpRange,
 				Succeeded: true,
@@ -101,14 +184,6 @@ func runSim(jumpRange, density float64) *Result {
 
 		step = next
 	}
-}
-
-type Result struct {
-	Density   float64
-	JumpRange float64
-	Succeeded bool
-	Count     int
-	TotalJump float64
 }
 
 type Step struct {
