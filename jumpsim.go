@@ -16,12 +16,25 @@ const (
 	FieldSize     = 1000.0
 	FieldPadding  = 80.0
 
-	DefaultMaxHop = 100000
+	DefaultMaxHop      = 100000
+	DefaultDensityStep = 1.2589254117941675 // 10 ^ 0.1
 )
 
 func main() {
-	var density float64
-	flag.Float64Var(&density, "d", BubbleDensity, "System densit [LY^-3]")
+	var densityMin float64
+	flag.Float64Var(&densityMin, "dmin", BubbleDensity, "Minimum system density [LY^-3]")
+	var densityMax float64
+	flag.Float64Var(&densityMax, "dmax", BubbleDensity, "Maximum system density [LY^-3]")
+	var densityStepMult float64
+	flag.Float64Var(&densityStepMult, "dstep", DefaultDensityStep, "Step multiplier system density [LY^-3]")
+
+	var jumpRangeMin float64
+	flag.Float64Var(&jumpRangeMin, "jmin", 6.5, "Minimum jump range [LY]")
+	var jumpRangeMax float64
+	flag.Float64Var(&jumpRangeMax, "jmax", 75, "Maximum jump range [LY]")
+	var jumpRangeStep float64
+	flag.Float64Var(&jumpRangeStep, "jstep", 0.25, "Step of jump range [LY]")
+
 	var tryCount int
 	flag.IntVar(&tryCount, "n", 1, "Try count per jump range")
 	var maxHop int
@@ -35,7 +48,7 @@ func main() {
 	// gen problems
 	go func() {
 		id := 0
-		for jumpRange := 6.5; jumpRange < 75; jumpRange += 0.25 {
+		for jumpRange := jumpRangeMin; jumpRange < jumpRangeMax; jumpRange += jumpRangeStep {
 			for i := 0; i < tryCount; i++ {
 				probCh <- Problem{
 					ID:        id,
