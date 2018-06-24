@@ -17,21 +17,25 @@ const (
 	FieldPadding  = 80.0
 
 	DefaultMaxHop      = 100000
-	DefaultDensityStep = 1.2589254117941675 // 10 ^ 0.1
+	DefaultDensityStep = 0.1 // 10 ^ 0.1
 )
 
 func main() {
 	var densityMin float64
 	flag.Float64Var(&densityMin, "dmin", BubbleDensity, "Minimum system density [LY^-3]")
+
 	var densityMax float64
 	flag.Float64Var(&densityMax, "dmax", BubbleDensity, "Maximum system density [LY^-3]")
-	var densityStepMult float64
-	flag.Float64Var(&densityStepMult, "dstep", DefaultDensityStep, "Step multiplier system density [LY^-3]")
+
+	var densityStepMultExp float64
+	flag.Float64Var(&densityStepMultExp, "dstep", DefaultDensityStep, "Log 10 of step multiplier system density [LY^-3]")
 
 	var jumpRangeMin float64
 	flag.Float64Var(&jumpRangeMin, "jmin", 6.5, "Minimum jump range [LY]")
+
 	var jumpRangeMax float64
 	flag.Float64Var(&jumpRangeMax, "jmax", 75, "Maximum jump range [LY]")
+
 	var jumpRangeStep float64
 	flag.Float64Var(&jumpRangeStep, "jstep", 0.25, "Step of jump range [LY]")
 
@@ -42,21 +46,25 @@ func main() {
 
 	flag.Parse()
 
+	densityStepMult := math.Pow(10, densityStepMultExp)
+
 	probCh := make(chan Problem, 32)
 	resultCh := make(chan *Result, 32)
 
 	// gen problems
 	go func() {
 		id := 0
-		for jumpRange := jumpRangeMin; jumpRange < jumpRangeMax; jumpRange += jumpRangeStep {
-			for i := 0; i < tryCount; i++ {
-				probCh <- Problem{
-					ID:        id,
-					JumpRange: jumpRange,
-					Density:   density,
-					MaxHop:    maxHop,
+		for density := densityMin; density <= densityMax; density *= densityStepMult {
+			for jumpRange := jumpRangeMin; jumpRange < jumpRangeMax; jumpRange += jumpRangeStep {
+				for i := 0; i < tryCount; i++ {
+					probCh <- Problem{
+						ID:        id,
+						JumpRange: jumpRange,
+						Density:   density,
+						MaxHop:    maxHop,
+					}
+					id++
 				}
-				id++
 			}
 		}
 		close(probCh)
@@ -112,7 +120,7 @@ func main() {
 
 			if result.Succeeded {
 				fmt.Printf(
-					`%d	NA	T	%.6f	%.2f	%d	%.2f	%.4f`+"\n",
+					`%d	T	NA	%.6f	%.2f	%d	%.2f	%.4f`+"\n",
 					result.ID,
 					result.Density,
 					result.JumpRange,
@@ -122,7 +130,7 @@ func main() {
 				)
 			} else {
 				fmt.Printf(
-					`%d	%s	F	%.6f	%.2f	NA	NA	NA`+"\n",
+					`%d	F	%s	%.6f	%.2f	NA	NA	NA`+"\n",
 					result.ID,
 					result.Because,
 					result.Density,
